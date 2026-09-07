@@ -109,8 +109,9 @@ def online_users():
 def webhook():
     subprocess.run(['git', 'pull', 'origin', 'main'], cwd='/home/panusddn/mysite')
     subprocess.run(['touch', '/var/www/panusddn_pythonanywhere_com_wsgi.py'])
-    return "Updated successfully", 200
+    return "Updated successfully", 200   
+init_db()
 
 if __name__ == '__main__':
-    init_db()
+    
     app.run(debug=True, port=5000)
