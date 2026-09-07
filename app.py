@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify, render_template, session
 import sqlite3
 import os
+import subprocess
 
 app = Flask(__name__)
 app.secret_key = 'robust_v5_5_secret_key'
@@ -78,6 +79,14 @@ def save():
 def logout():
     session.clear()
     return jsonify({'success': True})
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    # ดึงโค้ดล่าสุดจาก GitHub
+    subprocess.run(['git', 'pull', 'origin', 'main'], cwd='/home/panusddn/mysite')
+    # สั่งรีสตาร์ทเซิร์ฟเวอร์อัตโนมัติ
+    subprocess.run(['touch', '/var/www/panusddn_pythonanywhere_com_wsgi.py'])
+    return "Updated successfully", 200
 
 if __name__ == '__main__':
     init_db()
