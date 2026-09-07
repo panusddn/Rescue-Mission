@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rescue Mission: Robust Edition</title>
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a252f; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        h1 { color: #f1c40f; margin-top: 0; margin-bottom: 5px; text-align: center; }
+
+        .main-wrapper { width: 100%; max-width: 1100px; display: flex; flex-direction: column; gap: 15px; }
+
+        /* Auth Top Bar */
+        .top-bar { display: flex; justify-content: space-between; align-items: center; background-color: #2c3e50; padding: 10px 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .user-info { font-size: 18px; font-weight: bold; color: #2ecc71; }
+        .logout-btn { background-color: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .logout-btn:hover { background-color: #c0392b; }
+
+        .level-progress-container { display: flex; justify-content: center; gap: 8px; background-color: #2c3e50; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); flex-wrap: wrap;}
+        .level-badge { width: 35px; height: 35px; border-radius: 50%; background-color: #7f8c8d; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 16px; color: white; border: 3px solid #1a252f; transition: all 0.3s; }
+        .level-badge.active { background-color: #3498db; border-color: #ecf0f1; transform: scale(1.15); }
+        .level-badge.completed { background-color: #2ecc71; border-color: #27ae60; }
+
+        .dashboard { display: flex; justify-content: space-between; gap: 20px; }
+        .mission-panel { flex: 2; background-color: #ecf0f1; color: #2c3e50; padding: 15px 25px; border-radius: 10px; border-left: 8px solid #9b59b6; }
+        .mission-panel h2 { margin: 0 0 10px 0; color: #8e44ad; }
+        .mission-panel p { margin: 5px 0; font-size: 16px; line-height: 1.5; }
+        .hint { color: #d35400; font-weight: bold; }
+
+        .stats-panel { flex: 1; background-color: #f39c12; color: #2c3e50; padding: 15px; border-radius: 10px; display: flex; flex-direction: column; justify-content: center; box-shadow: 0 4px #e67e22; }
+        .stat-item { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin: 5px 0; padding-bottom: 5px; border-bottom: 1px dashed rgba(0,0,0,0.2); }
+        .stat-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+        .game-area { display: flex; width: 100%; gap: 20px; }
+        #blocklyDiv { flex: 1; height: 550px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+
+        .board-panel { display: flex; flex-direction: column; align-items: center; width: 45%; }
+        #game-board { display: grid; gap: 2px; background-color: #2c3e50; border: 5px solid #7f8c8d; border-radius: 10px; padding: 5px; }
+        .cell { background-color: #ecf0f1; display: flex; justify-content: center; align-items: center; border-radius: 5px; transition: background-color 0.2s; }
+        .wall { background-color: #7f8c8d; }
+
+        .run-btn { margin-top: 15px; padding: 15px 40px; font-size: 18px; background-color: #2ecc71; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px #27ae60; width: 100%; transition: all 0.1s; }
+        .run-btn:active { box-shadow: 0 0 #27ae60; transform: translateY(4px); }
+        .run-btn:disabled { background-color: #7f8c8d; box-shadow: 0 4px #bdc3c7; cursor: not-allowed; }
+
+        /* ระบบ Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; color: #2c3e50; padding: 30px; border-radius: 15px; text-align: center; width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .modal-content input { width: 90%; padding: 12px; font-size: 16px; margin: 10px 0; border: 2px solid #bdc3c7; border-radius: 5px; text-align: center; }
+
+        .btn-blue { background-color: #3498db; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px;}
+        .btn-gray { background-color: #95a5a6; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px;}
+
+        /* Certificate */
+        .cert-container { background: white; width: 800px; height: 560px; padding: 20px; box-sizing: border-box; color: #2c3e50; position: relative; }
+        .cert-border { border: 15px solid #8e44ad; outline: 5px solid #9b59b6; outline-offset: -25px; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; background: #fdfbf7; padding: 40px; box-sizing: border-box; }
+        .cert-border h1 { color: #8e44ad; font-size: 32px; margin-bottom: 5px; }
+        .cert-border h2 { font-size: 44px; color: #2c3e50; margin: 20px 0; text-decoration: underline; }
+        .cert-border p { font-size: 20px; line-height: 1.6; margin: 10px 0; }
+        .print-btn-group { margin-top: 20px; display: flex; gap: 15px; }
+
+        @media print {
+            body * { visibility: hidden; }
+            #certModal, #certModal * { visibility: visible; }
+            #certModal { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: white; }
+            .print-btn-group { display: none !important; }
+            @page { size: A4 landscape; margin: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Modal Login/Register -->
+    <div id="authModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color: #8e44ad;">🔐 เข้าสู่ระบบ</h2>
+            <p>เพื่อบันทึกความคืบหน้าและคะแนนของคุณ</p>
+            <input type="text" id="authUsername" placeholder="ชื่อผู้ใช้ (Username)">
+            <input type="password" id="authPassword" placeholder="รหัสผ่าน (Password)">
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn-blue" onclick="login()">เข้าสู่ระบบ</button>
+                <button class="btn-gray" onclick="register()">สมัครสมาชิก</button>
+            </div>
+            <p id="authMessage" style="color:#e74c3c; margin-top:15px; font-weight:bold;"></p>
+        </div>
+    </div>
+
+    <!-- Modal Certificate -->
+    <div id="certModal" class="modal-overlay" style="display: none;">
+        <div class="cert-container">
+            <div class="cert-border">
+                <h1>เกียรติบัตรฉบับนี้ให้ไว้เพื่อแสดงว่า</h1>
+                <h2 id="certName">ชื่อ - นามสกุล</h2>
+                <p>ได้ผ่านการประเมินทักษะ <b>วิทยาการคำนวณและการออกแบบอัลกอริทึม</b><br>
+                ระดับมัธยมศึกษาตอนต้น ในภารกิจ "Advanced Rescue Mission"</p>
+                <p style="color: #c0392b; font-weight: bold; font-size: 24px;">คะแนนประเมินผลสัมฤทธิ์: <span id="certScore">100</span> คะแนน</p>
+                <p style="margin-top: 30px;">ให้ไว้ ณ วันที่ <span id="certDate"></span></p>
+            </div>
+        </div>
+        <div class="print-btn-group">
+            <button class="btn-blue" style="width:auto; padding: 12px 25px;" onclick="window.print()">🖨️ สั่งพิมพ์เกียรติบัตร</button>
+            <button class="btn-gray" style="width:auto; padding: 12px 25px;" onclick="resetProgress()">🔄 เริ่มเล่นใหม่ทั้งหมด</button>
+        </div>
+    </div>
+
+    <div class="main-wrapper" id="gameUI" style="display:none;">
+        <div class="top-bar">
+            <h1>🤖 Advanced Rescue Mission 🤖</h1>
+            <div>
+                <span class="user-info">👤 ผู้เล่น: <span id="display-username"></span></span>
+                <button class="logout-btn" style="margin-left:15px;" onclick="logout()">ออกจากระบบ</button>
+            </div>
+        </div>
+
+        <div class="level-progress-container" id="progress-container"></div>
+
+        <div class="dashboard">
+            <div class="mission-panel">
+                <h2 id="level-title">ชื่อด่าน</h2>
+                <p><strong>🎯 ภารกิจ:</strong> <span id="level-mission">อธิบายภารกิจ</span></p>
+                <p class="hint">💡 <strong>แนวคิด:</strong> <span id="level-hint">คำแนะนำการใช้บล็อก</span></p>
+            </div>
+            <div class="stats-panel">
+                <div class="stat-item"><span>💯 คะแนนสะสม:</span><span id="score-text">100</span></div>
+                <div class="stat-item"><span>🧩 ใช้บล็อกไป:</span><span><span id="block-text">0</span> / <span id="max-blocks-text">5</span></span></div>
+            </div>
+        </div>
+
+        <div class="game-area">
+            <div id="blocklyDiv"></div>
+            <div class="board-panel">
+                <div id="game-board"></div>
+                <button class="run-btn" id="runBtn" onclick="executeCode()">▶️ เริ่มประมวลผลอัลกอริทึม</button>
+            </div>
+        </div>
+    </div>
+
+    <xml id="toolbox" style="display: none">
+        <category name="การเคลื่อนที่" colour="230">
+            <block type="move_forward"></block>
+            <block type="turn_left"></block>
+            <block type="turn_right"></block>
+        </category>
+        <category name="การควบคุม (Loop)" colour="120">
+            <block type="repeat_n_times"></block>
+            <block type="repeat_until_goal"></block>
+        </category>
+        <category name="เงื่อนไข (Logic)" colour="210">
+            <block type="if_else_path_clear"></block>
+        </category>
+    </xml>
+
+    <script>
+        // --- 1. ระบบ Backend Authentication ---
+        async function login() {
+            const u = document.getElementById('authUsername').value;
+            const p = document.getElementById('authPassword').value;
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, password: p})
+            });
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('authModal').style.display = 'none';
+                document.getElementById('gameUI').style.display = 'flex';
+
+                // --- เพิ่มคำสั่งส่วนนี้ เพื่อบังคับให้ Blockly วาดบล็อกใหม่ให้มองเห็นได้ ---
+                setTimeout(() => {
+                    Blockly.svgResize(workspace);
+                }, 50);
+                // ----------------------------------------------------
+
+                document.getElementById('display-username').innerText = data.username;
+                currentLevelIndex = data.level;
+                currentScore = data.score;
+                loadLevel(currentLevelIndex);
+            } else {
+                document.getElementById('authMessage').innerText = data.message;
+            }
+        }
+
+        async function register() {
+            const u = document.getElementById('authUsername').value;
+            const p = document.getElementById('authPassword').value;
+            if(!u || !p) { document.getElementById('authMessage').innerText = 'กรุณากรอกข้อมูลให้ครบถ้วน'; return; }
+
+            const res = await fetch('/register', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: u, password: p})
+            });
+            const data = await res.json();
+            document.getElementById('authMessage').innerText = data.message;
+            if(data.success) { document.getElementById('authMessage').style.color = '#2ecc71'; }
+            else { document.getElementById('authMessage').style.color = '#e74c3c'; }
+        }
+
+        async function logout() {
+            await fetch('/logout', { method: 'POST' });
+            location.reload();
+        }
+
+        async function saveProgressToServer() {
+            await fetch('/save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({level: currentLevelIndex, score: currentScore})
+            });
+        }
+
+        async function resetProgress() {
+            currentLevelIndex = 0;
+            currentScore = 100;
+            await saveProgressToServer();
+            document.getElementById('certModal').style.display = 'none';
+            loadLevel(0);
+        }
+
+        // --- 2. ตั้งค่าบล็อก Blockly ---
+        Blockly.Blocks['move_forward'] = { init: function() { this.appendDummyInput().appendField("⬆️ เดินหน้า"); this.setPreviousStatement(true, null); this.setNextStatement(true, null); this.setColour(230); }};
+        Blockly.Blocks['turn_left'] = { init: function() { this.appendDummyInput().appendField("↺ หันซ้าย"); this.setPreviousStatement(true, null); this.setNextStatement(true, null); this.setColour(230); }};
+        Blockly.Blocks['turn_right'] = { init: function() { this.appendDummyInput().appendField("↻ หันขวา"); this.setPreviousStatement(true, null); this.setNextStatement(true, null); this.setColour(230); }};
+
+        Blockly.Blocks['repeat_n_times'] = {
+            init: function() {
+                this.appendDummyInput().appendField("🔁 ทำซ้ำ").appendField(new Blockly.FieldNumber(2, 1, 100), "TIMES").appendField("รอบ");
+                this.appendStatementInput("DO").setCheck(null);
+                this.setPreviousStatement(true, null); this.setNextStatement(true, null); this.setColour(120);
+            }
+        };
+
+        Blockly.Blocks['repeat_until_goal'] = {
+            init: function() {
+                this.appendDummyInput().appendField("🚩 ทำซ้ำจนกว่าจะถึงเป้าหมาย");
+                this.appendStatementInput("DO").setCheck(null);
+                this.setPreviousStatement(true, null); this.setNextStatement(true, null); this.setColour(120);
+            }
+        };
+
+        Blockly.Blocks['if_else_path_clear'] = {
+            init: function() {
+                this.appendDummyInput().appendField("👀 ถ้าทางข้างหน้าปลอดภัย");
+                this.appendStatementInput("DO").setCheck(null).appendField("ทำ");
+                this.appendStatementInput("ELSE").setCheck(null).appendField("มิฉะนั้น");
+                this.setPreviousStatement(true, null); this.setNextStatement(true, null); this.setColour(210);
+            }
+        };
+
+        Blockly.JavaScript.forBlock['move_forward'] = function() { return 'await doMoveForward();\n'; };
+        Blockly.JavaScript.forBlock['turn_left'] = function() { return 'await doTurnLeft();\n'; };
+        Blockly.JavaScript.forBlock['turn_right'] = function() { return 'await doTurnRight();\n'; };
+
+        Blockly.JavaScript.forBlock['repeat_n_times'] = function(block) {
+            let repeats = Number(block.getFieldValue('TIMES'));
+            let branch = Blockly.JavaScript.statementToCode(block, 'DO');
+            return `for (let i = 0; i < ${repeats}; i++) {\n${branch}}\n`;
+        };
+
+        Blockly.JavaScript.forBlock['repeat_until_goal'] = function(block) {
+            let branch = Blockly.JavaScript.statementToCode(block, 'DO');
+            return `while (!isGoalReached() && !isGameOver) {\n${branch} await delay(100);\n}\n`;
+        };
+
+        Blockly.JavaScript.forBlock['if_else_path_clear'] = function(block) {
+            let branchDo = Blockly.JavaScript.statementToCode(block, 'DO');
+            let branchElse = Blockly.JavaScript.statementToCode(block, 'ELSE');
+            return `if (isPathClear()) {\n${branchDo}} else {\n${branchElse}}\n`;
+        };
+
+        var workspace = Blockly.inject('blocklyDiv', { toolbox: document.getElementById('toolbox'), scrollbars: true, trashcan: true });
+
+        // --- 3. ฐานข้อมูลด่านระดับมัธยม (1-10) ---
+        const gameLevels = [
+            { title: "ด่านที่ 1: บันไดอัลกอริทึม", mission: "ค้นหารูปแบบที่ซ้ำกัน", hint: "จับรูปแบบใส่บล็อก 'ทำซ้ำ N รอบ'", maxBlocks: 6, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 1, 1, 1, 1], [0, 0, 1, 1, 1], [1, 0, 0, 1, 1], [1, 1, 0, 0, 1], [1, 1, 1, 0, 2]] },
+            { title: "ด่านที่ 2: โครงสร้างซ้อนทับ", mission: "เดินตามขอบกำแพงรูปตัวยูขนาดใหญ่", hint: "ใช้บล็อกทำซ้ำ ซ้อนในบล็อกทำซ้ำอีกอัน", maxBlocks: 7, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 0], [2, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1]] },
+            { title: "ด่านที่ 3: แนะนำ While Loop", mission: "ทางเดินยาวมากและไม่รู้จุดสิ้นสุดแน่นอน", hint: "ใช้บล็อก 'ทำซ้ำจนกว่าจะถึงเป้าหมาย'", maxBlocks: 3, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 1, 0], [1, 1, 1, 1, 1, 1, 2]] },
+            { title: "ด่านที่ 4: การตัดสินใจ", mission: "หลบหลีกสิ่งกีดขวาง", hint: "ทำซ้ำจนกว่าถึงเป้าหมาย คู่กับ ถ้า...มิฉะนั้น", maxBlocks: 5, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 0, 1, 1, 1, 1], [1, 0, 0, 1, 1, 1], [1, 1, 0, 0, 1, 1], [1, 1, 1, 0, 0, 1], [1, 1, 1, 1, 0, 2]] },
+            { title: "ด่านที่ 5: กฎมือขวา", mission: "เมื่อชนกำแพง ให้เลี้ยวขวาเสมอ", hint: "[ถ้าทางปลอดภัย -> เดินหน้า] [มิฉะนั้น -> เลี้ยวขวา]", maxBlocks: 5, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 0, 0, 0, 1, 1, 1], [1, 1, 1, 0, 1, 1, 1], [1, 1, 1, 0, 0, 0, 1], [1, 1, 1, 1, 1, 0, 1], [1, 1, 1, 1, 1, 0, 2]] },
+            { title: "ด่านที่ 6: เขาวงกตเกลียว", mission: "หลงอยู่ในเกลียวเขาวงกตที่วนเข้าสู่แกนกลาง", hint: "ใช้อัลกอริทึมกฎมือขวาจากด่านที่ 5", maxBlocks: 5, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 0], [0, 0, 0, 2, 1, 0], [0, 1, 1, 1, 1, 0], [0, 1, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0]] },
+            { title: "ด่านที่ 7: อัลกอริทึมเลี้ยวซ้าย", mission: "เขาวงกตนี้เปลี่ยนทิศทาง", hint: "ปรับเปลี่ยนทิศการเลี้ยวให้เหมาะสม", maxBlocks: 5, startPosition: { x: 6, y: 0, direction: 3 }, map: [[1, 0, 0, 0, 0, 0, 0], [1, 0, 1, 1, 1, 1, 1], [1, 0, 1, 2, 0, 0, 1], [1, 0, 1, 1, 1, 0, 1], [1, 0, 0, 0, 0, 0, 1]] },
+            { title: "ด่านที่ 8: ทางแยกและทางตัน", mission: "สำรวจทางเดินแบบซิกแซกอย่างชาญฉลาด", hint: "While Loop ครอบเงื่อนไข If/Else", maxBlocks: 5, startPosition: { x: 0, y: 7, direction: 0 }, map: [[1, 1, 1, 1, 1, 1, 1, 2], [1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 0, 0, 1], [1, 1, 1, 1, 0, 0, 1, 1], [1, 1, 1, 0, 0, 1, 1, 1], [1, 1, 0, 0, 1, 1, 1, 1], [1, 0, 0, 1, 1, 1, 1, 1], [0, 0, 1, 1, 1, 1, 1, 1]] },
+            { title: "ด่านที่ 9: พื้นที่ซับซ้อน", mission: "หาทางเดินทะลุกำแพงที่คดเคี้ยว", hint: "ใช้ตรรกะที่ผ่านมาประยุกต์ร่วมกัน", maxBlocks: 5, startPosition: { x: 0, y: 0, direction: 1 }, map: [[0, 0, 0, 1, 1, 1, 1, 1], [1, 1, 0, 0, 0, 1, 1, 1], [1, 1, 1, 1, 0, 0, 0, 1], [1, 1, 1, 1, 1, 1, 0, 1], [1, 1, 1, 1, 1, 1, 0, 1], [1, 1, 1, 1, 1, 1, 0, 1], [1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1, 2]] },
+            { title: "ด่านที่ 10: สุดยอดโปรแกรมเมอร์", mission: "ปรับทิศทางก่อนรันระบบนำทางอัตโนมัติ", hint: "วางบล็อกหันหน้าไว้ 'ก่อน' ลูปอัตโนมัติ", maxBlocks: 7, startPosition: { x: 1, y: 1, direction: 3 }, map: [[1, 1, 1, 1, 1, 1, 1, 1], [1, 0, 0, 0, 0, 0, 0, 1], [1, 0, 1, 1, 1, 1, 0, 1], [1, 0, 1, 2, 0, 1, 0, 1], [1, 0, 1, 1, 0, 1, 0, 1], [1, 0, 0, 0, 0, 1, 0, 1], [1, 1, 1, 1, 1, 1, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1]] }
+        ];
+
+        let currentLevelIndex = 0;
+        let mapData = [];
+        let bot = {};
+        let MAX_BLOCKS = 0;
+        let currentScore = 100;
+        let isGameOver = false;
+
+        const boardElement = document.getElementById('game-board');
+        const scoreText = document.getElementById('score-text');
+
+        function renderProgressIndicators() {
+            const progressContainer = document.getElementById('progress-container');
+            progressContainer.innerHTML = '';
+            gameLevels.forEach((level, index) => {
+                const badge = document.createElement('div');
+                badge.classList.add('level-badge');
+                badge.innerText = index + 1;
+                if (index < currentLevelIndex) { badge.classList.add('completed'); badge.innerText = '✓'; }
+                else if (index === currentLevelIndex) { badge.classList.add('active'); }
+                progressContainer.appendChild(badge);
+            });
+        }
+
+        function loadLevel(index) {
+            if (index >= gameLevels.length) {
+                const u = document.getElementById('display-username').innerText;
+                const today = new Date();
+                const dateString = today.toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('certName').innerText = u;
+                document.getElementById('certScore').innerText = currentScore;
+                document.getElementById('certDate').innerText = dateString;
+                document.getElementById('certModal').style.display = 'flex';
+                return;
+            }
+
+            let levelData = gameLevels[index];
+            document.getElementById('level-title').innerText = levelData.title;
+            document.getElementById('level-mission').innerText = levelData.mission;
+            document.getElementById('level-hint').innerText = levelData.hint;
+
+            MAX_BLOCKS = levelData.maxBlocks;
+            document.getElementById('max-blocks-text').innerText = MAX_BLOCKS;
+
+            mapData = JSON.parse(JSON.stringify(levelData.map));
+            bot = { ...levelData.startPosition };
+
+            renderProgressIndicators();
+            workspace.clear();
+            updateScoreDisplay();
+            drawBoard();
+        }
+
+        function updateBlockCount() {
+            let usedBlocks = workspace.getAllBlocks(false).length;
+            let blockTextElement = document.getElementById('block-text');
+            blockTextElement.innerText = usedBlocks;
+            blockTextElement.style.color = (usedBlocks > MAX_BLOCKS) ? "#c0392b" : "inherit";
+        }
+        workspace.addChangeListener(updateBlockCount);
+
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+
+        function updateScoreDisplay() { scoreText.innerText = currentScore; }
+
+        function drawBoard() {
+            boardElement.innerHTML = '';
+            const rows = mapData.length;
+            const cols = mapData[0].length;
+            const cellSize = rows > 6 ? 45 : 55;
+
+            boardElement.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+            boardElement.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.style.width = `${cellSize}px`;
+                    cell.style.height = `${cellSize}px`;
+                    cell.style.fontSize = `${cellSize * 0.6}px`;
+
+                    if (mapData[y][x] === 1) { cell.classList.add('wall'); cell.innerText = '🪨'; }
+                    else if (mapData[y][x] === 2) { cell.innerText = '🆘'; }
+
+                    if (bot.x === x && bot.y === y) {
+                        const arrows = ['⬆️', '➡️', '⬇️', '⬅️'];
+                        cell.innerText = '🤖' + arrows[bot.direction];
+                    }
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        function isGoalReached() {
+            if(bot.y >= 0 && bot.y < mapData.length && bot.x >= 0 && bot.x < mapData[0].length) {
+                return mapData[bot.y][bot.x] === 2;
+            }
+            return false;
+        }
+
+        function isPathClear() {
+            let nextX = bot.x; let nextY = bot.y;
+            if (bot.direction === 0) nextY--; else if (bot.direction === 1) nextX++; else if (bot.direction === 2) nextY++; else if (bot.direction === 3) nextX--;
+            if (nextX < 0 || nextX >= mapData[0].length || nextY < 0 || nextY >= mapData.length) return false;
+            if (mapData[nextY][nextX] === 1) return false;
+            return true;
+        }
+
+        async function doTurnLeft() { if(isGameOver) return; bot.direction = (bot.direction - 1 + 4) % 4; drawBoard(); await delay(400); }
+        async function doTurnRight() { if(isGameOver) return; bot.direction = (bot.direction + 1) % 4; drawBoard(); await delay(400); }
+        async function doMoveForward() {
+            if (isGameOver) return;
+            let nextX = bot.x; let nextY = bot.y;
+            if (bot.direction === 0) nextY--; else if (bot.direction === 1) nextX++; else if (bot.direction === 2) nextY++; else if (bot.direction === 3) nextX--;
+
+            if (!isPathClear()) {
+                currentScore -= 10;
+                updateScoreDisplay();
+                alert("โอ๊ะโอ! ชนสิ่งกีดขวาง 💥 โดนหัก 10 คะแนน");
+                isGameOver = true;
+                return;
+            }
+
+            bot.x = nextX; bot.y = nextY;
+            drawBoard();
+            await delay(400);
+
+            if (isGoalReached()) {
+                isGameOver = true;
+                evaluateWin();
+            }
+        }
+
+        async function evaluateWin() {
+            let usedBlocks = workspace.getAllBlocks(false).length;
+            let extraMessage = "";
+            if (usedBlocks > MAX_BLOCKS) {
+                let penalty = (usedBlocks - MAX_BLOCKS) * 5;
+                currentScore -= penalty;
+                if (currentScore < 0) currentScore = 0;
+                updateScoreDisplay();
+                extraMessage = `\n⚠️ ใช้บล็อกเกินกำหนด (หัก ${penalty} คะแนน)`;
+            }
+
+            currentLevelIndex++;
+            await saveProgressToServer();
+
+            setTimeout(() => {
+                alert(`วิเคราะห์ผลลัพธ์: ผ่านเกณฑ์! 🎉${extraMessage}\n\nระบบบันทึกความคืบหน้าเรียบร้อยแล้ว เตรียมตัวด่านถัดไป!`);
+                loadLevel(currentLevelIndex);
+            }, 300);
+        }
+
+        async function executeCode() {
+            document.getElementById('runBtn').disabled = true;
+            bot = { ...gameLevels[currentLevelIndex].startPosition };
+            isGameOver = false;
+            drawBoard();
+
+            let code = Blockly.JavaScript.workspaceToCode(workspace);
+
+            let asyncWrapper = `
+                (async () => {
+                    try {
+                        ${code}
+                        if(!isGameOver && !isGoalReached()) alert("โปรแกรมทำงานจบแล้ว แต่หุ่นยนต์ยังไม่ถึงเป้าหมาย! ลองตรวจสอบลอจิกอีกครั้ง");
+                    } catch (e) {
+                        console.error(e);
+                    }
+                    document.getElementById('runBtn').disabled = false;
+                })();
+            `;
+            eval(asyncWrapper);
+        }
+    </script>
+</body>
+</html>
