@@ -1,18 +1,16 @@
 from flask import Flask, request, jsonify, render_template, session
 import sqlite3
+import time
 import os
 import subprocess
 
 app = Flask(__name__)
 app.secret_key = 'robust_v5_5_secret_key'
 
-# กำหนด Path ของฐานข้อมูลให้ชี้ไปที่โฟลเดอร์บน PythonAnywhere โดยตรง
 DB_PATH = '/home/panusddn/mysite/database.db'
 
 def get_db_connection():
-    # ฟังก์ชันตัวช่วยสำหรับเชื่อมต่อฐานข้อมูล
-    conn = sqlite3.connect(DB_PATH)
-    return conn
+    return sqlite3.connect(DB_PATH)
 
 def init_db():
     conn = get_db_connection()
@@ -23,6 +21,10 @@ def init_db():
                   password TEXT, 
                   level INTEGER, 
                   score INTEGER)''')
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN last_seen REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -36,9 +38,8 @@ def register():
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        # เริ่มต้นที่ด่าน 0 และคะแนน 100
-        c.execute("INSERT INTO users (username, password, level, score) VALUES (?, ?, 0, 100)", 
-                  (data['username'], data['password']))
+        c.execute("INSERT INTO users (username, password, level, score, last_seen) VALUES (?, ?, 0, 100, ?)", 
+                  (data['username'], data['password'], time.time()))
         conn.commit()
         return jsonify({'success': True, 'message': 'สมัครสมาชิกสำเร็จ โปรดเข้าสู่ระบบ'})
     except sqlite3.IntegrityError:
@@ -54,23 +55,25 @@ def login():
     c.execute("SELECT id, level, score FROM users WHERE username=? AND password=?", 
               (data['username'], data['password']))
     user = c.fetchone()
-    conn.close()
-    
     if user:
         session['user_id'] = user[0]
         session['username'] = data['username']
+        c.execute("UPDATE users SET last_seen=? WHERE id=?", (time.time(), user[0]))
+        conn.commit()
+        conn.close()
         return jsonify({'success': True, 'level': user[1], 'score': user[2], 'username': data['username']})
+    conn.close()
     return jsonify({'success': False, 'message': 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'})
 
 @app.route('/save', methods=['POST'])
 def save():
     if 'user_id' not in session:
-        return jsonify({'success': False, 'message': 'กรุณาเข้าสู่ระบบ'})
+        return jsonify({'success': False})
     data = request.json
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("UPDATE users SET level=?, score=? WHERE id=?", 
-              (data['level'], data['score'], session['user_id']))
+    c.execute("UPDATE users SET level=?, score=?, last_seen=? WHERE id=?", 
+              (data['level'], data['score'], time.time(), session['user_id']))
     conn.commit()
     conn.close()
     return jsonify({'success': True})
@@ -80,11 +83,31 @@ def logout():
     session.clear()
     return jsonify({'success': True})
 
+# --- ระบบ Online Users ---
+@app.route('/ping', methods=['POST'])
+def ping():
+    if 'user_id' in session:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("UPDATE users SET last_seen=? WHERE id=?", (time.time(), session['user_id']))
+        conn.commit()
+        conn.close()
+    return jsonify({'success': True})
+
+@app.route('/online_users', methods=['GET'])
+def online_users():
+    conn = get_db_connection()
+    c = conn.cursor()
+    active_threshold = time.time() - 120 
+    c.execute("SELECT username, level, score FROM users WHERE last_seen > ? ORDER BY score DESC, level DESC", (active_threshold,))
+    users = c.fetchall()
+    conn.close()
+    return jsonify([{'username': u[0], 'level': u[1], 'score': u[2]} for u in users])
+
+# --- ระบบรับสัญญาณจาก GitHub (Webhook) ---
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    # ดึงโค้ดล่าสุดจาก GitHub
     subprocess.run(['git', 'pull', 'origin', 'main'], cwd='/home/panusddn/mysite')
-    # สั่งรีสตาร์ทเซิร์ฟเวอร์อัตโนมัติ
     subprocess.run(['touch', '/var/www/panusddn_pythonanywhere_com_wsgi.py'])
     return "Updated successfully", 200
 
